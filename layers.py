@@ -396,7 +396,14 @@ class GBlock(nn.Module):
     self.upsample = upsample
 
   def forward(self, x, y):
+    #print('inside Gblock')
+    #print('in channels{}'.format(self.in_channels))
+    #print('out channels{}'.format(self.out_channels))
+    #print('x shape {}'.format(x.shape))
+    #print('y shape {}'.format(y.shape))
+
     h = self.activation(self.bn1(x, y))
+
     if self.upsample:
       h = self.upsample(h)
       x = self.upsample(x)
@@ -405,10 +412,12 @@ class GBlock(nn.Module):
     h = self.conv2(h)
     if self.learnable_sc:       
       x = self.conv_sc(x)
+    #print('out shape {}'.format((h+x).shape))
+    #print('\n\n')
     return h + x
     
     
-# Residual block for the discriminator
+# # Residual block for the discriminator
 class DBlock(nn.Module):
   def __init__(self, in_channels, out_channels, which_conv=SNConv2d, wide=True,
                preactivation=False, activation=None, downsample=None,):
@@ -420,13 +429,13 @@ class DBlock(nn.Module):
     self.preactivation = preactivation
     self.activation = activation
     self.downsample = downsample
-        
+
     # Conv layers
-    self.conv1 = self.which_conv(self.in_channels, self.hidden_channels)
-    self.conv2 = self.which_conv(self.hidden_channels, self.out_channels)
+    self.conv1 = self.which_conv(self.in_channels, self.hidden_channels,kernel_size=3,)
+    self.conv2 = self.which_conv(self.hidden_channels, self.out_channels,kernel_size=3,)
     self.learnable_sc = True if (in_channels != out_channels) or downsample else False
     if self.learnable_sc:
-      self.conv_sc = self.which_conv(in_channels, out_channels, 
+      self.conv_sc = self.which_conv(in_channels, out_channels,
                                      kernel_size=1, padding=0)
   def shortcut(self, x):
     if self.preactivation:
@@ -440,20 +449,130 @@ class DBlock(nn.Module):
       if self.learnable_sc:
         x = self.conv_sc(x)
     return x
-    
+
   def forward(self, x):
     if self.preactivation:
       # h = self.activation(x) # NOT TODAY SATAN
-      # Andy's note: This line *must* be an out-of-place ReLU or it 
+      # Andy's note: This line *must* be an out-of-place ReLU or it
       #              will negatively affect the shortcut connection.
       h = F.relu(x)
     else:
-      h = x    
+      h = x
     h = self.conv1(h)
     h = self.conv2(self.activation(h))
     if self.downsample:
-      h = self.downsample(h)     
-        
+      h = self.downsample(h)
+
     return h + self.shortcut(x)
     
 # dogball
+
+# Residual block for the discriminator
+# class DBlock(nn.Module):
+#   def __init__(self, in_channels, out_channels, which_conv=SNConv2d, wide=True,
+#                preactivation=False, activation=None, downsample=None, ):
+#     super(DBlock, self).__init__()
+#     self.in_channels, self.out_channels = in_channels, out_channels
+#     # If using wide D (as in SA-GAN and BigGAN), change the channel pattern
+#     self.hidden_channels = self.out_channels if wide else self.in_channels
+#     self.which_conv = which_conv
+#     self.preactivation = preactivation
+#     self.activation = activation
+#     self.downsample = downsample
+#
+#     # Conv layers
+#     self.conv1 = self.which_conv(self.in_channels, self.hidden_channels)
+#     self.conv2 = self.which_conv(self.hidden_channels, self.out_channels)
+#     self.learnable_sc = True if (in_channels != out_channels) or downsample else False
+#     if self.learnable_sc:
+#       self.conv_sc = self.which_conv(in_channels, out_channels,
+#                                      kernel_size=1, padding=0)
+#
+#   def shortcut(self, x):
+#     if self.preactivation:
+#       if self.learnable_sc:
+#         x = self.conv_sc(x)
+#       if self.downsample:
+#         x = self.downsample(x)
+#     else:
+#       if self.downsample:
+#         x = self.downsample(x)
+#       if self.learnable_sc:
+#         x = self.conv_sc(x)
+#     return x
+#
+#   def forward(self, x):
+#     if self.preactivation:
+#       # h = self.activation(x) # NOT TODAY SATAN
+#       # Andy's note: This line *must* be an out-of-place ReLU or it
+#       #              will negatively affect the shortcut connection.
+#       h = F.relu(x)
+#     else:
+#       h = x
+#     h = self.conv1(h)
+#     h = self.conv2(self.activation(h))
+#     if self.downsample:
+#       h = self.downsample(h)
+#
+#     return h + self.shortcut(x)
+#
+
+class DBlock_new(nn.Module):
+  def __init__(self, in_channels, out_channels, which_conv=SNConv2d, #wide=True,
+               preactivation=False, activation=None, downsample=None, bn=None):
+    super(DBlock_new, self).__init__()
+    self.in_channels, self.out_channels = in_channels, out_channels
+    # If using wide D (as in SA-GAN and BigGAN), change the channel pattern
+    #self.hidden_channels = self.out_channels if wide else self.in_channels
+    self.which_conv = which_conv
+    self.preactivation = preactivation
+    self.activation = activation
+    self.downsample = downsample
+
+    # Conv layers
+    self.conv1 = self.which_conv(self.in_channels, self.out_channels,kernel_size=4,stride=2)
+    #self.conv2 = self.which_conv(self.hidden_channels, self.out_channels)
+    self.bn= bn
+    if self.bn is None:
+      self.bn = nn.Identity()
+    else:
+      self.bn = self.bn(self.out_channels)
+    self.learnable_sc = True if (in_channels != out_channels) or downsample else False
+    if self.learnable_sc:
+      self.conv_sc = self.which_conv(in_channels, out_channels,
+                                     kernel_size=1, padding=0)
+  def shortcut(self, x):
+    if self.preactivation:
+      if self.learnable_sc:
+        x = self.conv_sc(x)
+      if self.downsample:
+        x = self.downsample(x)
+    else:
+      if self.downsample:
+        x = self.downsample(x)
+      if self.learnable_sc:
+        x = self.conv_sc(x)
+    #print('shortcut out size {}'.format(x.shape))
+    return x
+
+  def forward(self, x):
+    if self.preactivation:
+      # h = self.activation(x) # NOT TODAY SATAN
+      # Andy's note: This line *must* be an out-of-place ReLU or it
+      #              will negatively affect the shortcut connection.
+      h = F.relu(x)
+    else:
+      h = x
+
+    #print('d block in size 0 {}'.format(h.shape))
+    h = self.conv1(h)
+    #print('d block out size 5 {}'.format(h.shape))
+
+    h=self.bn(h)
+    #print('d block out size 10 {}'.format(h.shape))
+
+    # #h = self.conv2(self.activation(h))
+
+    #print('d block out size 15 {}'.format(h.shape))
+    #print('\n\n')
+    return h #+ self.shortcut(x)

@@ -28,11 +28,13 @@ import utils
 import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
+from datetime import datetime
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
 def run(config):
-
+  time = datetime.now()
+  time = time.strftime("%m-%d-%Y-%H:%M:%S")
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
   # configuration into the config-dict (e.g. inferring the number of classes
@@ -61,7 +63,7 @@ def run(config):
   # Import the model--this line allows us to dynamically select different files.
   model = __import__(config['model'])
   experiment_name = (config['experiment_name'] if config['experiment_name']
-                       else utils.name_from_config(config))
+                       else utils.name_from_config(config,time))
   print('Experiment name is %s' % experiment_name)
 
   # Next, build the model
@@ -109,6 +111,7 @@ def run(config):
     GD = nn.DataParallel(GD)
     if config['cross_replica']:
       patch_replication_callback(GD)
+  print("\nLet's use", torch.cuda.device_count(), "GPUs!\n")
 
   # Prepare loggers for stats; metrics holds test metrics,
   # lmetrics holds any desired training metrics.
@@ -128,11 +131,11 @@ def run(config):
   # to the dataloader, as G doesn't require dataloading.
   # Note that at every loader iteration we pass in enough data to complete
   # a full D iteration (regardless of number of D steps and accumulations)
-  D_batch_size = (config['batch_size'] * config['num_D_steps']
-                  * config['num_D_accumulations'])
+  D_batch_size = (config['batch_size'] * config['num_D_steps'])
+                  #* config['num_D_accumulations'])
   loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                       'start_itr': state_dict['itr']})
-
+  print('BS {}'.format(D_batch_size))
   # Prepare inception metrics: FID and IS
   get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
 
@@ -150,7 +153,7 @@ def run(config):
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
-                                            ema, state_dict, config)
+                                            ema, state_dict, time, config)
   # Else, assume debugging and use the dummy train fn
   else:
     train = train_fns.dummy_training_function()
@@ -171,6 +174,9 @@ def run(config):
     for i, (x, y) in enumerate(pbar):
       # Increment the iteration counter
       state_dict['itr'] += 1
+      print('\nCurrent iter: {}\n'.format(state_dict['itr']))
+      # print('x shape {}'.format(x.shape))
+      # print('y shape {}'.format(y.shape))
       # Make sure G and D are in training mode, just in case they got set to eval
       # For D, which typically doesn't have BN, this shouldn't matter much.
       G.train()
@@ -183,26 +189,26 @@ def run(config):
         x, y = x.to(device), y.to(device)
       metrics = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics)
-      
+
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
-        train_log.log(itr=int(state_dict['itr']), 
+        train_log.log(itr=int(state_dict['itr']),
                       **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
 
       # If using my progbar, print metrics.
       if config['pbar'] == 'mine':
-          print(', '.join(['itr: %d' % state_dict['itr']] 
+          print(', '.join(['itr: %d' % state_dict['itr']]
                            + ['%s : %+4.3f' % (key, metrics[key])
                            for key in metrics]), end=' ')
 
-      # Save weights and copies as configured at specified interval
+      #Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
           if config['ema']:
             G_ema.eval()
-        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                                   state_dict, config, experiment_name)
 
       # Test every specified interval
@@ -212,7 +218,7 @@ def run(config):
           G.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                        get_inception_metrics, experiment_name, test_log)
-    # Increment epoch counter at end of epoch
+    #Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
 

@@ -31,7 +31,7 @@ def prepare_parser():
   usage = 'Parser for all scripts.'
   parser = ArgumentParser(description=usage)
   
-  ### Dataset/Dataloader stuff ###
+  ### Dataset/Dataloader stuff ###use_multiepoch_sampler
   parser.add_argument(
     '--dataset', type=str, default='I128_hdf5',
     help='Which Dataset to train on, out of I128, I256, C10, C100;'
@@ -59,6 +59,9 @@ def prepare_parser():
   
   
   ### Model stuff ###
+  parser.add_argument(
+    '--num_feedback_iter', type=int, default=4,
+    help='number of feedback iter')
   parser.add_argument(
     '--model', type=str, default='BigGAN',
     help='Name of the model module (default: %(default)s)')
@@ -111,7 +114,7 @@ def prepare_parser():
     '--G_nl', type=str, default='relu',
     help='Activation function for G (default: %(default)s)')
   parser.add_argument(
-    '--D_nl', type=str, default='relu',
+    '--D_nl', type=str, default='inplace_leakyrelu',
     help='Activation function for D (default: %(default)s)')
   parser.add_argument(
     '--G_attn', type=str, default='64',
@@ -315,10 +318,10 @@ def prepare_parser():
   
   ### Ortho reg stuff ### 
   parser.add_argument(
-    '--G_ortho', type=float, default=0.0, # 1e-4 is default for BigGAN
+    '--G_ortho', type=float, default=1e-4, # 1e-4 is default for BigGAN
     help='Modified ortho reg coefficient in G(default: %(default)s)')
   parser.add_argument(
-    '--D_ortho', type=float, default=0.0,
+    '--D_ortho', type=float, default=1e-4,
     help='Modified ortho reg coefficient in D (default: %(default)s)')
   parser.add_argument(
     '--toggle_grads', action='store_true', default=True,
@@ -429,7 +432,8 @@ classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'C10': 10, 'C100': 100}
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
-                   'ir': nn.ReLU(inplace=True),}
+                   'ir': nn.ReLU(inplace=True),
+                   'inplace_leakyrelu':nn.LeakyReLU(negative_slope=0.2, inplace=True)}
 
 class CenterCropLongEdge(object):
   """Crops the given PIL Image on the long edge.
@@ -570,13 +574,13 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   loaders = []   
   if use_multiepoch_sampler:
     print('Using multiepoch sampler from start_itr %d...' % start_itr)
-    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
+    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,'drop_last': True}
     sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
     train_loader = DataLoader(train_set, batch_size=batch_size,
                               sampler=sampler, **loader_kwargs)
   else:
     loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
-                     'drop_last': drop_last} # Default, drop last incomplete batch
+                     'drop_last': True}# drop_last} # Default, drop last incomplete batch
     train_loader = DataLoader(train_set, batch_size=batch_size,
                               shuffle=shuffle, **loader_kwargs)
   loaders.append(train_loader)
@@ -973,9 +977,10 @@ def get_SVs(net, prefix):
 
 
 # Name an experiment based on its config
-def name_from_config(config):
+def name_from_config(config,time):
   name = '_'.join([
   item for item in [
+  time,
   'Big%s' % config['which_train_fn'],
   config['dataset'],
   config['model'] if config['model'] != 'BigGAN' else None,
@@ -1091,7 +1096,8 @@ def prepare_z_y(G_batch_size, dim_z, nclasses, device='cuda',
   
   if fp16:
     z_ = z_.half()
-
+  # print('\n\n')
+  # print(z_.shape)
   y_ = Distribution(torch.zeros(G_batch_size, requires_grad=False))
   y_.init_distribution('categorical',num_categories=nclasses)
   y_ = y_.to(device, torch.int64)
