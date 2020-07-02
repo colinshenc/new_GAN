@@ -196,7 +196,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                                                                    , D_real)
                         g_fakes_enforcement = losses.loss_enforcing(g_fakes#[accumulation_index]
                                                                     , nn.AvgPool2d(4)(G_fake))
-                        D_loss = (D_loss_real + D_loss_fake + 10*d_real_enforcement + 10*g_fakes_enforcement)# / float(config['num_D_accumulations'])
+                        D_loss = (D_loss_real + D_loss_fake + 0.1 * d_real_enforcement + 0.1 * g_fakes_enforcement)# / float(config['num_D_accumulations'])
                     else:
                         D_loss = (D_loss_real + D_loss_fake)# / float(config['num_D_accumulations'])
 
@@ -314,10 +314,10 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                 else:
                     #D_fake = D_fake.repeat(1,3,1,1)
                     #z_ = zs_[:config['batch_size']].view(zs_.size(0), 9, 8, 8)[:, :5]
-                    G_fake = g_fakes#[accumulation_index]
+                    #G_fake = g_fakes#[accumulation_index]
 
                     #z_ = torch.cat([zs[accumulation_index], d_fakes[accumulation_index], G_fake, ], 1)
-                    z_ = torch.cat([z_, G_fake, d_fakes#[accumulation_index]
+                    z_ = torch.cat([z_, g_fakes, d_fakes#[accumulation_index]
                                        , ], 1)
 
                     #gy = gys[accumulation_index]
@@ -329,7 +329,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                                                                 , nn.AvgPool2d(4)(G_z))
                     d_fakes_enforcement = losses.loss_enforcing(d_fakes#[accumulation_index]
                                                                 , D_fake)
-                    G_loss = (losses.generator_loss(D_fake) + 10 * g_fakes_enforcement + 10 * d_fakes_enforcement) #/ float(config['num_G_accumulations'])
+                    G_loss = (losses.generator_loss(D_fake) + 0.1 * g_fakes_enforcement + 0.1 * d_fakes_enforcement) #/ float(config['num_G_accumulations'])
                 else:
                     G_loss = (losses.generator_loss(D_fake))# / float(config['num_G_accumulations'])
 
