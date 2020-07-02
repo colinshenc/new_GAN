@@ -150,6 +150,8 @@ def run(config):
                                        fp16=config['G_fp16'])  
   fixed_z.sample_()
   fixed_y.sample_()
+  fixed_z = fixed_z[:config['batch_size']].view(fixed_z.size(0), 24, 8, 8)[:, :20]
+
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
@@ -187,7 +189,7 @@ def run(config):
         x, y = x.to(device).half(), y.to(device)
       else:
         x, y = x.to(device), y.to(device)
-      metrics = train(x, y)
+      metrics, partial_test_input = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics)
 
       # Every sv_log_interval, log singular values
@@ -201,6 +203,7 @@ def run(config):
                            + ['%s : %+4.3f' % (key, metrics[key])
                            for key in metrics]), end=' ')
 
+      fixed_z = torch.cat([fixed_z, partial_test_input], 1)
       #Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
@@ -210,14 +213,14 @@ def run(config):
             G_ema.eval()
         train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                                   state_dict, config, experiment_name)
-      #not testing for now...
+      # not testing for now...
       # Test every specified interval
-      # if not (state_dict['itr'] % config['test_every']):
-      #   if config['G_eval_mode']:
-      #     print('Switchin G to eval mode...')
-      #     G.eval()
-      #   train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-      #                  get_inception_metrics, experiment_name, test_log)
+      if not (state_dict['itr'] % config['test_every']):
+        if config['G_eval_mode']:
+          print('Switchin G to eval mode...')
+          G.eval()
+        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                       get_inception_metrics, experiment_name, test_log)
     #Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 

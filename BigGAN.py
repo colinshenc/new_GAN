@@ -248,7 +248,9 @@ class Generator(nn.Module):
         #print('y shape{}'.format(y.shape))
         # print(len(ys))
         if not z.dim() == 4:
-            raise IndexError('Check G input dimensions')
+            z = z[:config['batch_size']].view(z.size(0), 24, 8, 8)
+            print('after dim change, z size {}'.format(z.shape))
+            #raise IndexError('Check G input dimensions, G input shape {}'.format(z.shape))
         # First linear layer
         #print('z shape 0{}'.format(z.shape))
         #h = self.linear1(z)

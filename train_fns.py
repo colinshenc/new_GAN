@@ -21,6 +21,8 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
     def train(x, y):
         G.optim.zero_grad()
         D.optim.zero_grad()
+        inner_iter_count = 0
+        partial_test_input = 0
         # How many chunks to split x and y into?
         #x = torch.split(x, config['batch_size'])
         #y = torch.split(y, config['batch_size'])
@@ -32,7 +34,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
         if config['toggle_grads']:
             utils.toggle_grad(D, True)
             utils.toggle_grad(G, False)
-      
+
         for step_index in range(config['num_D_steps']):
             # If accumulating gradients, loop multiple times before an optimizer step
             D.optim.zero_grad()
@@ -169,6 +171,8 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     #z_ = z_.view(z_.size(0),-1)
                         #print('z shape 15 {}'.format(z_.shape))
                         #gy = gys[accumulation_index]
+                    # if state_dict['itr'] % 42 == 0:
+                    #     partial_test_input = partial_test_input + torch.cat([g_fakes, d_fakes])
                     D_fake, D_real, G_fake = GD(z_,
                                         gy,
                                         x=x,#[accumulation_index],
@@ -319,7 +323,9 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     #z_ = torch.cat([zs[accumulation_index], d_fakes[accumulation_index], G_fake, ], 1)
                     z_ = torch.cat([z_, g_fakes, d_fakes#[accumulation_index]
                                        , ], 1)
-
+                if state_dict['itr'] % 42 == 0 and ((not (state_dict['itr'] % config['save_every'])) or (not (state_dict['itr'] % config['test_every']))):
+                    partial_test_input = partial_test_input + torch.cat([g_fakes, d_fakes])
+                    inner_iter_count = inner_iter_count + 1
                     #gy = gys[accumulation_index]
                 #z_ = z_.view(z_.size(0), -1)
                 D_fake, G_z = GD(z=z_, gy=gy, train_G=True, split_D=config['split_D'], return_G_z=True)
@@ -370,7 +376,9 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                 'D_loss_real': float(D_loss_real.item()),
                 'D_loss_fake': float(D_loss_fake.item())}
         # Return G's loss and the components of D's loss.
-        return out
+
+        partial_test_input = partial_test_input / (inner_iter_count + 1e-9)
+        return out, partial_test_input
     return train
   
 ''' This function takes in the model, saves the weights (multiple copies if 
