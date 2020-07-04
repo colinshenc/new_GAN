@@ -19,5 +19,5 @@ CUDA_VISIBLE_DEVICES=1,2,3 /ubc/cs/research/shield/projects/cshen001/anaconda3/e
 --dim_z 1536 --shared_dim 128 \
 --G_eval_mode --which_best FID\
 --ema --use_ema --ema_start 20000 \
---test_every 1000 --save_every 2000 --num_best_copies 5 --num_save_copies 2 --seed 0 \
---num_epochs 50 --parallel --num_feedback_iter 4 ###--use_multiepoch_sampler --load_in_mem --G_ch 64 --D_ch 64
+--test_every 2000 --save_every 2000 --num_best_copies 5 --num_save_copies 2 --seed 0 \
+--num_epochs 100 --parallel --num_feedback_iter 4 ###--use_multiepoch_sampler --load_in_mem --G_ch 64 --D_ch 64

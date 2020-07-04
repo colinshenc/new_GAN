@@ -135,7 +135,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     ys_.sample_()
                     gy = ys_[:config['batch_size']]
 
-                    if fb_iter == 0:
+                    if fb_iter <= 1:
                         # z_ = zs_[:config['batch_size']]
                         # gy = ys_[:config['batch_size']]
                         #print('z_ shape {}'.format(z_.shape))
@@ -145,9 +145,9 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                         #z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 8, 8)[:, :20]
                         #zs[accumulation_index] = z_
                         #print('three channel x input train D shape before {}'.format(x[:, :3].shape))
-
-                        z_ = torch.cat([z_, nn.AvgPool2d(4)(x[:, :3]), torch.ones(zs_.size(0), 1, 8, 8).cuda()], 1)
-                        print('three channel x input train D shape after {}'.format(nn.AvgPool2d(4)(x[:, :3]).shape))
+                        init_x = nn.AvgPool2d(4)(x[:, :3])
+                        z_ = torch.cat([z_, init_x, torch.ones(zs_.size(0), 1, 8, 8).cuda()], 1)
+                        #print('three channel x input train D shape after {}'.format(nn.AvgPool2d(4)(x[:, :3]).shape))
 
                         #ys_.sample_()
                         #gy = ys_[:config['batch_size']]
@@ -160,7 +160,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                         #print('g fake shape {}'.format(g_fakes[accumulation_index].shape))
                         #print('\n\n\n\n')
                         #z_ = zs_[:config['batch_size']].view(zs_.size(0), 9, 8, 8)[:, :8]
-                        G_fake = g_fakes#[accumulation_index]
+                        G_fake = 0.1 * g_fakes + 0.9 * init_x#[accumulation_index]
                         #print('z shape 5 {}'.format(z_.shape))
                         #z_=z_[:,:3]
                         #print('z shape 10 {}'.format(z_.shape))
@@ -200,7 +200,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                                                                    , D_real)
                         g_fakes_enforcement = losses.loss_enforcing(g_fakes#[accumulation_index]
                                                                     , nn.AvgPool2d(4)(G_fake))
-                        D_loss = (D_loss_real + D_loss_fake + 0.1 * d_real_enforcement + 0.1 * g_fakes_enforcement)# / float(config['num_D_accumulations'])
+                        D_loss = (D_loss_real + D_loss_fake + d_real_enforcement + g_fakes_enforcement)# / float(config['num_D_accumulations'])
                     else:
                         D_loss = (D_loss_real + D_loss_fake)# / float(config['num_D_accumulations'])
 
@@ -303,15 +303,15 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                 ys_.sample_()
                 gy = ys_
 
-                if fb_iter == 0:
+                if fb_iter <= 1:
                     #zs_.sample_()
                     #z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 8, 8)[:, :20]
 
                     #zs[accumulation_index] = z_
                     #print('three channel x input train G shape before {}'.format(x.shape))
-
-                    z_ = torch.cat([z_, nn.AvgPool2d(4)(x[:, :3]), torch.ones(zs_.size(0), 1, 8, 8).cuda()], 1)
-                    print('three channel x input train G shape after {}'.format(nn.AvgPool2d(4)(x[:, :3]).shape))
+                    init_x = nn.AvgPool2d(4)(x[:, :3])
+                    z_ = torch.cat([z_, init_x, torch.ones(zs_.size(0), 1, 8, 8).cuda()], 1)
+                    #print('three channel x input train G shape after {}'.format(nn.AvgPool2d(4)(x[:, :3]).shape))
                     #ys_.sample_()
                     #gy = ys_
                     #gys[accumulation_index] = gy.detach()
@@ -319,13 +319,14 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     #D_fake = D_fake.repeat(1,3,1,1)
                     #z_ = zs_[:config['batch_size']].view(zs_.size(0), 9, 8, 8)[:, :5]
                     #G_fake = g_fakes#[accumulation_index]
+                    G_fake = 0.1 * g_fakes + 0.9 * init_x  # [accumulation_index]
 
                     #z_ = torch.cat([zs[accumulation_index], d_fakes[accumulation_index], G_fake, ], 1)
-                    z_ = torch.cat([z_, g_fakes, d_fakes#[accumulation_index]
-                                       , ], 1)
-                if state_dict['itr'] % 42 == 0 and ((not (state_dict['itr'] % config['save_every'])) or (not (state_dict['itr'] % config['test_every']))):
-                    partial_test_input = partial_test_input + torch.cat([g_fakes, d_fakes])
-                    inner_iter_count = inner_iter_count + 1
+                    z_ = torch.cat([z_, G_fake, d_fakes #[accumulation_index]
+                                       ,], 1)
+                    if ((not (state_dict['itr'] % config['save_every'])) or (not (state_dict['itr'] % config['test_every']))):
+                        partial_test_input = partial_test_input + torch.cat([G_fake, d_fakes], 1)
+                        inner_iter_count = inner_iter_count + 1
                     #gy = gys[accumulation_index]
                 #z_ = z_.view(z_.size(0), -1)
                 D_fake, G_z = GD(z=z_, gy=gy, train_G=True, split_D=config['split_D'], return_G_z=True)
@@ -343,13 +344,18 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
 
                 if state_dict['itr'] % 1000 == 0:# and accumulation_index == 6:
                     print('saving img')
-                    torchvision.utils.save_image(D_fake.float().cpu(),
-                                               '/ubc/cs/research/shield/projects/cshen001/BigGAN-original/BigGAN-PyTorch/samples_new/{}_it{}_fb{}_dfake.jpg'.format(time,
+                    # torchvision.utils.save_image(D_fake.float().cpu(),
+                    #                            '/ubc/cs/research/shield/projects/cshen001/BigGAN-original/BigGAN-PyTorch/samples_new/{}_it{}_fb{}_dfake.jpg'.format(time,
+                    #                                state_dict['itr'], fb_iter),
+                    #                            nrow=int(D_fake.shape[0] ** 0.5),
+                    #                            normalize=True)
+                    torchvision.utils.save_image(G_z.float().cpu(),
+                                               '/ubc/cs/research/shield/projects/cshen001/BigGAN-original/BigGAN-PyTorch/samples_new/{}_it{}_fb{}_G_z.jpg'.format(time,
                                                    state_dict['itr'], fb_iter),
                                                nrow=int(D_fake.shape[0] ** 0.5),
                                                normalize=True)
-                    torchvision.utils.save_image(G_z.float().cpu(),
-                                               '/ubc/cs/research/shield/projects/cshen001/BigGAN-original/BigGAN-PyTorch/samples_new/{}_it{}_fb{}_G_z.jpg'.format(time,
+                    torchvision.utils.save_image(G_fake.float().cpu(),
+                                               '/ubc/cs/research/shield/projects/cshen001/BigGAN-original/BigGAN-PyTorch/samples_new/{}_it{}_fb{}_G_z_input.jpg'.format(time,
                                                    state_dict['itr'], fb_iter),
                                                nrow=int(D_fake.shape[0] ** 0.5),
                                                normalize=True)

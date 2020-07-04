@@ -151,7 +151,7 @@ def run(config):
   fixed_z.sample_()
   fixed_y.sample_()
   fixed_z = fixed_z[:config['batch_size']].view(fixed_z.size(0), 24, 8, 8)[:, :20]
-
+  print('fixed_z shape 0 {}'.format(fixed_z.shape))
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
@@ -175,7 +175,7 @@ def run(config):
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
       # Increment the iteration counter
-      state_dict['itr'] += 1
+      state_dict['itr'] = state_dict['itr'] + 1
       print('\nCurrent iter: {}\n'.format(state_dict['itr']))
       # print('x shape {}'.format(x.shape))
       # print('y shape {}'.format(y.shape))
@@ -203,7 +203,7 @@ def run(config):
                            + ['%s : %+4.3f' % (key, metrics[key])
                            for key in metrics]), end=' ')
 
-      fixed_z = torch.cat([fixed_z, partial_test_input], 1)
+
       #Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
@@ -211,9 +211,14 @@ def run(config):
           G.eval()
           if config['ema']:
             G_ema.eval()
-        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
+        #partial_test_input = partial_test_input.cuda()
+        #print('partial_test_input shape {}'.format(partial_test_input.shape))
+        print('fixed_z shape 5 {}'.format(fixed_z.shape))
+        print('partial shape 5 {}'.format(partial_test_input.shape))
+        fixed_z_ = torch.cat([fixed_z, partial_test_input], 1)
+        print('fixed z shape 10 {}'.format(fixed_z_.shape))
+        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z_, fixed_y,
                                   state_dict, config, experiment_name)
-      # not testing for now...
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
         if config['G_eval_mode']:
