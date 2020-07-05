@@ -131,7 +131,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     #for accumulation_index in range(config['num_D_accumulations']): #doesn't mean anything right now
                     #for fb_iter in range(config['num_feedback_iter']):
                     zs_.sample_()
-                    z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 8, 8)[:, :20]
+                    z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 32, 32)[:, :20]
                     ys_.sample_()
                     gy = ys_[:config['batch_size']]
 
@@ -145,8 +145,10 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                         #z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 8, 8)[:, :20]
                         #zs[accumulation_index] = z_
                         #print('three channel x input train D shape before {}'.format(x[:, :3].shape))
-                        init_x = nn.AvgPool2d(4)(x[:, :3])
-                        z_ = torch.cat([z_, init_x, torch.ones(zs_.size(0), 1, 8, 8).cuda()], 1)
+                        #init_x = nn.AvgPool2d(4)(x[:, :3])
+                        init_x = x[:, :3]
+
+                        z_ = torch.cat([z_, init_x, torch.ones(zs_.size(0), 1, 32, 32).cuda()], 1)
                         #print('three channel x input train D shape after {}'.format(nn.AvgPool2d(4)(x[:, :3]).shape))
 
                         #ys_.sample_()
@@ -163,10 +165,11 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                         G_fake = 0.1 * g_fakes + 0.9 * init_x#[accumulation_index]
                         #print('z shape 5 {}'.format(z_.shape))
                         #z_=z_[:,:3]
-                        #print('z shape 10 {}'.format(z_.shape))
-
+                        # print('z shape 10 {}'.format(z_.shape))
+                        # print('g fake shape 10 {}'.format(G_fake.shape))
+                        # print('d real shape 10 {}'.format(d_reals.shape))
                         #z_ = torch.cat([zs[accumulation_index],d_reals[accumulation_index], G_fake,], 1)
-                        z_ = torch.cat([z_, G_fake, d_reals#[accumulation_index]
+                        z_ = torch.cat([z_, G_fake, nn.functional.interpolate(d_reals, 32, mode='bilinear')#[accumulation_index]
                                            ,], 1)
                     #z_ = z_.view(z_.size(0),-1)
                         #print('z shape 15 {}'.format(z_.shape))
@@ -178,6 +181,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                                         x=x,#[accumulation_index],
                                         dy=y,#[accumulation_index],
                                         train_G=False,
+
                                         split_D=config['split_D'])
                     #print('D shape {}'.format(D_fake.shape))
                     if state_dict['itr'] % 1000 == 0:# and accumulation_index == 6:
@@ -198,7 +202,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     if not fb_iter == 0:
                         d_real_enforcement = losses.loss_enforcing(d_reals#[accumulation_index]
                                                                    , D_real)
-                        g_fakes_enforcement = losses.loss_enforcing(g_fakes#[accumulation_index]
+                        g_fakes_enforcement = losses.loss_enforcing(g_fakes #[accumulation_index]
                                                                     , nn.AvgPool2d(4)(G_fake))
                         D_loss = (D_loss_real + D_loss_fake + d_real_enforcement + g_fakes_enforcement)# / float(config['num_D_accumulations'])
                     else:
@@ -209,6 +213,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
 
                     #g_fakes[accumulation_index] = nn.AvgPool2d(4)(G_fake).detach()
                     g_fakes = nn.AvgPool2d(4)(G_fake).detach()
+                    #g_fakes = G_fake.detach()
 
                     # Compute components of D's loss, average them, and divide by
                     # the number of gradient accumulations
@@ -226,7 +231,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     # Optionally apply ortho reg in D
                     if config['D_ortho'] > 0.0:
                         # Debug print to indicate we're using ortho reg in D.
-                        print('using modified ortho reg in D')
+                        # print('using modified ortho reg in D')
                         utils.ortho(D, config['D_ortho'])
 
                     D.optim.step()
@@ -253,7 +258,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
         if state_dict['epoch'] < 0:
             #for accumulation_index in range(config['num_G_accumulations']):  # doesn't mean anything right now
             zs_.sample_()
-            z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 8, 8)[:, :20]
+            z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 32, 32)[:, :20]
             #zs[accumulation_index] = z_[:, :5]
             # z_ = torch.cat([z, torch.zeros(zs_.size(0), 4, 8, 8).cuda()],1)
             ys_.sample_()
@@ -299,7 +304,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
             for fb_iter in range(config['num_feedback_iter']):
                 #for accumulation_index in range(config['num_G_accumulations']): #doesn't mean anything right now
                 zs_.sample_()
-                z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 8, 8)[:, :20]
+                z_ = zs_[:config['batch_size']].view(zs_.size(0), 24, 32, 32)[:, :20]
                 ys_.sample_()
                 gy = ys_
 
@@ -309,8 +314,9 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
 
                     #zs[accumulation_index] = z_
                     #print('three channel x input train G shape before {}'.format(x.shape))
-                    init_x = nn.AvgPool2d(4)(x[:, :3])
-                    z_ = torch.cat([z_, init_x, torch.ones(zs_.size(0), 1, 8, 8).cuda()], 1)
+                    #init_x = nn.AvgPool2d(4)(x[:, :3])
+                    init_x = x[:, :3]
+                    z_ = torch.cat([z_, init_x, torch.ones(zs_.size(0), 1, 32, 32).cuda()], 1)
                     #print('three channel x input train G shape after {}'.format(nn.AvgPool2d(4)(x[:, :3]).shape))
                     #ys_.sample_()
                     #gy = ys_
@@ -322,7 +328,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                     G_fake = 0.1 * g_fakes + 0.9 * init_x  # [accumulation_index]
 
                     #z_ = torch.cat([zs[accumulation_index], d_fakes[accumulation_index], G_fake, ], 1)
-                    z_ = torch.cat([z_, G_fake, d_fakes #[accumulation_index]
+                    z_ = torch.cat([z_, G_fake, nn.functional.interpolate(d_fakes, 32, mode='bilinear') #[accumulation_index]
                                        ,], 1)
                     if ((not (state_dict['itr'] % config['save_every'])) or (not (state_dict['itr'] % config['test_every']))):
                         partial_test_input = partial_test_input + torch.cat([G_fake, d_fakes], 1)
@@ -336,7 +342,7 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
                                                                 , nn.AvgPool2d(4)(G_z))
                     d_fakes_enforcement = losses.loss_enforcing(d_fakes#[accumulation_index]
                                                                 , D_fake)
-                    G_loss = (losses.generator_loss(D_fake) + 0.1 * g_fakes_enforcement + 0.1 * d_fakes_enforcement) #/ float(config['num_G_accumulations'])
+                    G_loss = (losses.generator_loss(D_fake) + g_fakes_enforcement + d_fakes_enforcement) #/ float(config['num_G_accumulations'])
                 else:
                     G_loss = (losses.generator_loss(D_fake))# / float(config['num_G_accumulations'])
 
@@ -362,7 +368,9 @@ def GAN_training_function(G, D, GD, zs_, ys_, ema, state_dict, time, config):
 
                 #g_fakes[accumulation_index] = nn.AvgPool2d(4)(G_z).detach()
                 g_fakes = nn.AvgPool2d(4)(G_z).detach()
+                #g_fakes = G_z.detach()
                 #d_fakes[accumulation_index] = D_fake.detach()
+
                 d_fakes = D_fake.detach()
 
                 # Optionally apply modified ortho reg in G

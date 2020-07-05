@@ -248,7 +248,7 @@ class Generator(nn.Module):
         #print('y shape{}'.format(y.shape))
         # print(len(ys))
         if not z.dim() == 4:
-            z = z.view(z.size(0), 24, 8, 8)
+            z = z.view(z.size(0), 24, 32, 32)
             #print('after dim change, z size {}'.format(z.shape))
             #raise IndexError('Check G input dimensions, G input shape {}'.format(z.shape))
         # First linear layer
@@ -702,7 +702,7 @@ class G_D(nn.Module):
             D_fake = self.D(G_z, gy)
             if x is not None:
                 D_real = self.D(x, dy)
-                return D_fake, D_real
+                return D_fake, D_real, G_z
             else:
                 if return_G_z:
                     return D_fake, G_z
@@ -717,7 +717,7 @@ class G_D(nn.Module):
             D_out = self.D(D_input, D_class)
             if x is not None:
                 D_fake, D_real = torch.split(D_out, [G_z.shape[0], x.shape[0]])
-                return D_fake, D_real, G_z  # D_fake, D_real
+                return D_fake, D_real, G_z  # D_fake, D_real, G_fake
             else:
                 if return_G_z:
                     return D_out, G_z
