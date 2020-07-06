@@ -44,7 +44,7 @@ def G_arch(ch=64, attention='64', ksize='333333', dilation='111111'):
                               for i in range(3,7)}}
     arch[32]  = {'in_channels' :  [ch * item for item in [4, 4, 4]],
                'out_channels' : [ch * item for item in [4, 4, 4]],
-               'upsample' : [True] * 2 + [False],
+               'upsample' :  [False] * 3,
                'resolution' : [8, 16, 32],
                'attention' : {2**i: (2**i in [int(item) for item in attention.split('_')])
                               for i in range(3,6)}}
@@ -711,6 +711,7 @@ class G_D(nn.Module):
     # If real data is provided, concatenate it with the Generator's output
     # along the batch dimension for improved efficiency.
         else:
+            # print('G_z shape 5 {}'.format(G_z.shape))
             D_input = torch.cat([G_z, x], 0) if x is not None else G_z
             D_class = torch.cat([gy, dy], 0) if dy is not None else gy
             # Get Discriminator output

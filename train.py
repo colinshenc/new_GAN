@@ -150,7 +150,7 @@ def run(config):
                                        fp16=config['G_fp16'])  
   fixed_z.sample_()
   fixed_y.sample_()
-  fixed_z = fixed_z[:config['batch_size']].view(fixed_z.size(0), 24, 32, 32)[:, :20]
+  fixed_z = fixed_z[:config['batch_size']].view(fixed_z.size(0), 24, 32, 32)#[:, :20]
   print('fixed_z shape 0 {}'.format(fixed_z.shape))
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
@@ -215,7 +215,8 @@ def run(config):
         #print('partial_test_input shape {}'.format(partial_test_input.shape))
         #print('fixed_z shape 5 {}'.format(fixed_z.shape))
         #print('partial shape 5 {}'.format(partial_test_input.shape))
-        fixed_z_ = torch.cat([fixed_z, partial_test_input], 1)
+        #fixed_z_ = torch.cat([fixed_z, partial_test_input], 1)
+        fixed_z_ = fixed_z
         #print('fixed z shape 10 {}'.format(fixed_z_.shape))
         train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z_, fixed_y,
                                   state_dict, config, experiment_name)

@@ -63,6 +63,9 @@ def prepare_parser():
     '--num_feedback_iter', type=int, default=4,
     help='number of feedback iter')
   parser.add_argument(
+    '--num_feedback_iter_D', type=int, default=2,
+    help='number of feedback iter')
+  parser.add_argument(
     '--model', type=str, default='BigGAN',
     help='Name of the model module (default: %(default)s)')
   parser.add_argument(
